@@ -8,8 +8,20 @@ from sklearn.metrics import accuracy_score, f1_score
 SUBMISSIONS_DIR = Path(__file__).resolve().parent.parent / "submissions"
 
 def read_submission_files():
+    """
+    Return all submission CSVs that should count toward the leaderboard.
+
+    We explicitly ignore internal/example files such as the public
+    sample and test submissions to avoid cluttering the leaderboard
+    with baselines.
+    """
     files = os.listdir(SUBMISSIONS_DIR)
-    return [f"{SUBMISSIONS_DIR}/{f}" for f in files if f.endswith('.csv')]
+    blacklist = {"sample_submission.csv", "test_submission.csv"}
+    return [
+        f"{SUBMISSIONS_DIR}/{f}"
+        for f in files
+        if f.endswith(".csv") and f not in blacklist
+    ]
 
 
 def _team_name_from_path(path: Path) -> str:
@@ -79,8 +91,17 @@ def get_leaderboard_data():
     for submission_path in files:
         submission_path = Path(submission_path)
         team_name = _team_name_from_path(submission_path)
-        timestamp = datetime.fromtimestamp(submission_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-        team_scores = calculate_scores(submission_path)
+        timestamp = datetime.fromtimestamp(submission_path.stat().st_mtime).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        try:
+            team_scores = calculate_scores(submission_path)
+        except Exception as e:
+            # If a submission is malformed or incompatible with the current
+            # scoring setup, skip it instead of failing the whole workflow.
+            print(f"Skipping invalid submission '{submission_path}': {e}")
+            continue
+
         scores.append(
             {
                 "team_name": team_name,
