@@ -36,21 +36,26 @@ def process_submission():
     """
     Decrypt all encrypted submissions and refresh the leaderboard.
 
-    This avoids relying on filesystem modification times and ensures that
-    every *.csv.enc file under `submissions/` is available as a *.csv
-    when we recompute the leaderboard.
+    We try to decrypt every `*.csv.enc` file but skip any that are invalid
+    (e.g. encrypted with the wrong key or with mismatched labels) so that
+    a single bad submission does not break the entire pipeline.
     """
     try:
         encrypted_files = list_encrypted_submissions()
-        for encrypted_file in encrypted_files:
-            decrypt_submission_file(encrypted_file)
-
-        # Now that all encrypted submissions have corresponding .csv files,
-        # rebuild the leaderboard from every CSV in the submissions directory.
-        update_leaderboard_csv()
     except NoEncryptedFileError as e:
         print(f"Error: {e}")
         print("Continuing with no changes...")
+        return
+
+    for encrypted_file in encrypted_files:
+        try:
+            decrypt_submission_file(encrypted_file)
+        except Exception as e:
+            print(f"Skipping encrypted submission '{encrypted_file}': {e}")
+
+    # Now that all decryptable submissions have corresponding .csv files,
+    # rebuild the leaderboard from every valid CSV in the submissions directory.
+    update_leaderboard_csv()
 
 if __name__ == "__main__":
     process_submission()
